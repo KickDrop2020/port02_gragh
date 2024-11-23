@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph Create</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.1.4/Chart.min.js"></script>
+</head>
+
+<body class="bg-light">
+    <div class="container w-100">
+        <h1 class="text-center py-1 my-2 bg-primary text-white font-monospace">Graph Create</h1>
+        <form id="form" class="mb-2">
+            <div class="mb-3">
+                <label for="formFile" class="form-label text-dark">表示するファイルを選択してください</label>
+                <input class="form-control font-monospace" type="file" id="file">
+            </div>
+            <div class="text-dark mt-2">表示するX軸のラベル（時間）を設定してください</div>
+            <div class="number-input font-monospace">
+                <input type="text" id="X_label" name="X_label"  value="Time" placeholder="Time">
+            </div>
+            <div class="text-dark mt-2">表示するY軸のラベルを設定してください（最大5個まで）
+                <input type="button" value="追加" onclick="addText();" class="btn btn-primary my-1">
+                <input type="button" value="削除" onclick="deleteText();" class="btn btn-primary my-1">
+            </div>
+            <div class="number-input font-monospace Y1_label_setting">
+                <input type="text" id="Y1_label_1" name="Y1_label_1" value="Y1_label_1" placeholder="Input">
+            </div>
+            <div class="text-dark mt-2">表示する区間を秒単位で指定してください</div>
+            <div class="number-input font-monospace">
+                <input type="number" id="start-seconds" name="start-seconds"  value="0" min="0" step="100" placeholder="開始(秒)">
+                〜
+                <input type="number" id="end-seconds" name="end-seconds"  value="1000" min="0" step="100" placeholder="終了(秒)">
+                <button type="button" id="display" class="btn btn-primary my-1">表示</button>
+            </div>
+            <div class="text-primary my-2">グラフのY軸範囲を変更できます。</div>
+            <div class="number-input font-monospace">
+                <input type="number" id="Y1_min" name="Y1_min"  value="0" step="10" placeholder="Y軸最小値">
+                〜
+                <input type="number" id="Y1_max" name="Y1_max"  value="100" step="10" placeholder="Y軸最大値">
+            </div>
+        </form>
+        <div style="height:30rem; width:80rem; background-color: #fff;">
+            <canvas id="myChart1" width="800" height="300" style="display: block;"></canvas>
+        </div>
+    </div>
+</body>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctx = document.getElementById("myChart1");
+    let myChart1 = new Chart(ctx);
+
+    const result = [];
+    let fileInput = document.getElementById('file');
+    let fileReader = new FileReader();
+
+    fileInput.onchange = () => {
+        let file = fileInput.files[0];
+        fileReader.readAsText(file);
+    };
+
+    fileReader.onload = () => {
+        const txt = fileReader.result;
+
+        // ファイル全体を行ごとに分割
+        const arr = txt.split(/\r\n|\n|\r/);
+        const X_labelname = document.getElementById('X_label').value;
+        // Y1_labelを含む親要素を取得
+        const parentDiv = document.querySelector('.number-input.font-monospace.Y1_label_setting');
+        const parentDiv_num = parentDiv.children.length;
+
+        // ヘッダー行から列インデックスを取得
+        const headers = arr[0].split(',');
+        const timeIndex = headers.indexOf(X_labelname);
+        if (timeIndex === -1) {
+            alert("指定されたラベルが見つかりません。=>" + X_labelname);
+            return;
+        }
+        
+        const Y1_labelIndex = [];
+        const Y1_labelnames = [];
+        for (let i = 1; i < parentDiv_num + 1; i++) {
+            const Y1_labelname = document.getElementById('Y1_label_' + i).value;
+            Y1_labelnames.push(Y1_labelname);
+            Y1_labelIndex.push(headers.indexOf(Y1_labelname));
+            if (Y1_labelIndex[i] === -1) {
+                alert("指定されたラベルが見つかりません。=>" + Y1_labelIndex[i]);
+                return;
+            }
+        }
+        
+        const X_labeldata = [];
+        const Y1_labeldata = [];
+        for (let j = 0; j < parentDiv_num; j++){ 
+            Y1_labeldata[j] = [];
+        }
+        
+        for (let i = 1; i < arr.length - 1; i++) {
+            const row = arr[i].split(',');
+            if (row[timeIndex]) {
+                X_labeldata.push(Number(row[timeIndex]));
+            }
+            for (let j = 0; j < parentDiv_num; j++){    
+                // 各データを計算し格納
+                if (row[Y1_labelIndex[j]]) {
+                    Y1_labeldata[j].push(Number(row[Y1_labelIndex[j]]) * 1/1);
+                }
+            }
+        }
+
+        renderGraph(X_labeldata, Y1_labeldata, X_labelname, Y1_labelnames, parentDiv_num);
+    };
+    document.getElementById('display').onclick = () => {
+        const startSeconds = parseInt(document.getElementById('start-seconds').value || 0);
+        const endSeconds = parseInt(document.getElementById('end-seconds').value || (result.length - 1) * 1);
+        const txt = fileReader.result;
+
+        // ファイル全体を行ごとに分割
+        const arr = txt.split(/\r\n|\n|\r/);
+        const X_labelname = document.getElementById('X_label').value;
+
+        // Y1_labelを含む親要素を取得
+        const parentDiv = document.querySelector('.number-input.font-monospace.Y1_label_setting');
+        const parentDiv_num = parentDiv.children.length;
+
+        // ヘッダー行から列インデックスを取得
+        const headers = arr[0].split(',');
+        const timeIndex = headers.indexOf(X_labelname);
+        if (timeIndex === -1) {
+            alert("指定されたラベルが見つかりません。=>" + X_labelname);
+            return;
+        }
+        
+        const Y1_labelIndex = [];
+        const Y1_labelnames = [];
+        for (let i = 1; i < parentDiv_num + 1; i++) {
+            const Y1_labelname = document.getElementById('Y1_label_' + i).value;
+            Y1_labelnames.push(Y1_labelname);
+            Y1_labelIndex.push(headers.indexOf(Y1_labelname));
+            if (Y1_labelIndex[i] === -1) {
+                alert("指定されたラベルが見つかりません。=>" + Y1_labelIndex[i]);
+                return;
+            }
+        }
+
+        const X_labeldata = [];
+        const Y1_labeldata = [];
+        for (let j = 0; j < parentDiv_num; j++){ 
+            Y1_labeldata[j] = [];
+        }
+        
+        for (let i = 1; i < arr.length - 1; i++) {
+            const row = arr[i].split(',');
+            if (row[timeIndex]) {
+                X_labeldata.push(Number(row[timeIndex]));
+            }
+            for (let j = 0; j < parentDiv_num; j++){    
+                // 各データを計算し格納
+                if (row[Y1_labelIndex[j]]) {
+                    Y1_labeldata[j].push(Number(row[Y1_labelIndex[j]]) * 1/1);
+                }
+            }
+        }
+
+        const specX_labeldata = [];
+        const specY1_labeldata = [];
+        const samplingtime = X_labeldata[1] - X_labeldata[0];
+        
+        for (let j = 0; j < parentDiv_num; j++){ 
+            specY1_labeldata[j] = [];
+        }
+
+        for (let i = 0; i < X_labeldata.length; i++) {
+            const timeInSeconds = i * samplingtime;
+            
+            if (timeInSeconds >= startSeconds && timeInSeconds <= endSeconds) {
+                specX_labeldata.push(X_labeldata[i]);
+                for (let j = 0; j < parentDiv_num; j++){
+                    specY1_labeldata[j].push(Y1_labeldata[j][i]);
+                }
+            }
+        }
+
+        renderGraph(specX_labeldata, specY1_labeldata, X_labelname, Y1_labelnames, parentDiv_num);
+    };
+    function renderGraph(X_labeldata, Y1_labeldata, X_labelname, Y1_labelnames, parentDiv_num) {
+        if (myChart1) {
+            myChart1.destroy();
+        }
+        const Y1_min = Math.trunc(document.getElementById('Y1_min').value);
+        const Y1_max = Math.trunc(document.getElementById('Y1_max').value);
+
+        myChart1 = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: X_labeldata,
+                datasets: [
+                    { label: Y1_labelnames[0], data: Y1_labeldata[0], borderColor: "rgba(175,215,246,1)", backgroundColor: "rgba(0,0,0,0)", pointStyle: false},
+                    { label: Y1_labelnames[1], data: Y1_labeldata[1], borderColor: "rgba(237,192,58,1)", backgroundColor: "rgba(0,0,0,0)", pointStyle: false},
+                    { label: Y1_labelnames[2], data: Y1_labeldata[2], borderColor: "rgba(101,255,101,1)", backgroundColor: "rgba(0,0,0,0)", pointStyle: false},
+                    { label: Y1_labelnames[3], data: Y1_labeldata[3], borderColor: "rgba(205,101,178,1)", backgroundColor: "rgba(0,0,0,0)", pointStyle: false},
+                    { label: Y1_labelnames[4], data: Y1_labeldata[4], borderColor: "rgba(153,255,255,1)", backgroundColor: "rgba(0,0,0,0)", pointStyle: false}
+                ],
+            },
+            options: {
+                scales: {
+                    x: {title: {display: true, text: X_labelname, font: {size:18}}, ticks:{font:{size:18}}},
+                    y: { min: Y1_min, max: Y1_max, ticks: { stepSize: (Y1_max - Y1_min) / 10, font:{size:18} } }
+                },
+                plugins:{
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels:{
+                            filter: function(items) {
+                                return items.datasetIndex <parentDiv_num;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    function addText() {
+        // Y1_labelを含む親要素を取得
+        const parentDiv = document.querySelector('.number-input.font-monospace.Y1_label_setting');
+        const parentDiv_num = parentDiv.children.length + 1;
+        // 新しいテキストボックスを作成
+        const newTextBox = document.createElement('input');
+        newTextBox.type = 'text';
+        newTextBox.id = 'Y1_label_' + parentDiv_num;
+        newTextBox.name = 'Y1_label_' +  + parentDiv_num;
+        newTextBox.placeholder = '追加ラベル';
+        newTextBox.className = 'm-1';
+        // 親要素に追加
+        parentDiv.appendChild(newTextBox);
+    }
+    function deleteText() {
+        // Y1_labelを含む親要素を取得
+        const parentDiv = document.querySelector('.number-input.font-monospace.Y1_label_setting');
+        const parentDiv_num = parentDiv.children.length;
+        // 新しいテキストボックスを作成
+        const removeTextBox = document.getElementById('Y1_label_' + parentDiv_num);
+        removeTextBox.remove();
+    }
+</script>
+
+</html>
